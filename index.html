@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daily Plate — health tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #F3F1EA;
+    --surface: #FBFAF6;
+    --ink: #2C3327;
+    --ink-soft: #6B7363;
+    --sage: #7C9473;
+    --sage-deep: #5F7556;
+    --clay: #C77B5A;
+    --clay-soft: #E4B79F;
+    --line: #E2DFD4;
+    --ring-track: #E8E5DA;
+    --good: #7C9473;
+    --warn: #C9A227;
+    --over: #C25B4A;
+    --radius: 16px;
+    --shadow: 0 1px 3px rgba(44,51,39,.06), 0 6px 24px rgba(44,51,39,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg); color: var(--ink);
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+    padding-bottom: 40px;
+  }
+  h1, h2, h3, .display { font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  input, select { font-family: inherit; font-size: 1rem; }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 18px; }
+
+  /* ── Header ── */
+  header.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0 10px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 9px; }
+  .brand .mark { font-family: 'Fraunces'; font-size: 1.55rem; color: var(--sage-deep); letter-spacing: -.01em; }
+  .brand .sub { font-size: .72rem; color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; }
+  .topbar .who { font-size: .8rem; color: var(--ink-soft); display: flex; align-items: center; gap: 10px; }
+  .linkbtn { background: none; color: var(--ink-soft); text-decoration: underline; font-size: .8rem; padding: 4px; }
+  .linkbtn:hover { color: var(--clay); }
+
+  .datebar { display: flex; align-items: center; gap: 12px; margin: 6px 0 18px; }
+  .datebar h2 { font-size: 1.15rem; font-weight: 500; }
+  .datebar .nav { display: flex; gap: 6px; }
+  .chip {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 6px 11px; font-size: .85rem; color: var(--ink);
+    transition: .15s;
+  }
+  .chip:hover { border-color: var(--sage); color: var(--sage-deep); }
+  .chip.today { font-weight: 600; }
+
+  /* ── Rings card ── */
+  .rings-card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px 20px; margin-bottom: 18px;
+  }
+  .rings { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 14px; }
+  .ring-unit { text-align: center; flex: 1; min-width: 92px; }
+  .ring-wrap { position: relative; width: 94px; height: 94px; margin: 0 auto 8px; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .ring-center .val { font-family: 'Fraunces'; font-size: 1.25rem; line-height: 1; }
+  .ring-center .unit { font-size: .62rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; }
+  .ring-label { font-size: .82rem; color: var(--ink-soft); }
+  .ring-target { font-size: .72rem; color: var(--ink-soft); opacity: .8; }
+
+  /* ── Sections ── */
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 22px 0 10px;
+  }
+  .section-head h3 { font-size: 1.05rem; }
+  .btn {
+    background: var(--sage); color: #fff; border-radius: 10px;
+    padding: 8px 14px; font-size: .85rem; font-weight: 500; transition: .15s;
+  }
+  .btn:hover { background: var(--sage-deep); }
+  .btn.clay { background: var(--clay); }
+  .btn.clay:hover { background: #b06849; }
+  .btn.ghost { background: transparent; color: var(--sage-deep); border: 1px solid var(--sage); }
+  .btn.ghost:hover { background: rgba(124,148,115,.1); }
+  .btn.sm { padding: 5px 10px; font-size: .8rem; }
+
+  /* ── Log list ── */
+  .log-list { display: flex; flex-direction: column; gap: 8px; }
+  .log-row {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .log-row .meal-tag {
+    font-size: .65rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--sage-deep); background: rgba(124,148,115,.13);
+    padding: 2px 7px; border-radius: 6px; font-weight: 600; white-space: nowrap;
+  }
+  .log-row .name { flex: 1; font-weight: 500; }
+  .log-row .name small { display: block; font-weight: 400; color: var(--ink-soft); font-size: .78rem; }
+  .log-row .macros { font-size: .78rem; color: var(--ink-soft); text-align: right; white-space: nowrap; }
+  .log-row .macros b { color: var(--ink); font-weight: 600; }
+  .log-row .del { background: none; color: var(--ink-soft); font-size: 1.1rem; padding: 2px 6px; border-radius: 6px; }
+  .log-row .del:hover { color: var(--over); background: rgba(194,91,74,.08); }
+
+  .empty {
+    text-align: center; color: var(--ink-soft); padding: 26px 16px;
+    background: var(--surface); border: 1px dashed var(--line); border-radius: 12px;
+  }
+  .empty p { margin-bottom: 12px; }
+
+  /* ── Weight chart ── */
+  .chart-card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px; margin-top: 8px;
+  }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .chart-head .latest { font-family: 'Fraunces'; font-size: 1.4rem; }
+  .chart-head .latest small { font-size: .8rem; color: var(--ink-soft); font-family: 'Inter'; }
+  .chart-head .delta { font-size: .82rem; font-weight: 600; }
+  .delta.down { color: var(--good); }
+  .delta.up { color: var(--clay); }
+
+  /* ── Modal ── */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(44,51,39,.4);
+    display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+    backdrop-filter: blur(2px);
+  }
+  .scrim.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 440px;
+    padding: 24px; box-shadow: 0 20px 60px rgba(44,51,39,.25); max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 1.2rem; margin-bottom: 4px; }
+  .modal .hint { font-size: .82rem; color: var(--ink-soft); margin-bottom: 16px; }
+  .field { margin-bottom: 13px; }
+  .field label { display: block; font-size: .78rem; font-weight: 600; margin-bottom: 5px; color: var(--ink); }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fff; color: var(--ink); transition: .15s;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px rgba(124,148,115,.15); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-actions .btn { flex: 1; justify-content: center; text-align: center; }
+
+  /* picker list inside modal */
+  .picker-search { margin-bottom: 12px; }
+  .picker-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; margin-bottom: 6px; }
+  .pick-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: #fff; text-align: left; transition: .12s;
+  }
+  .pick-item:hover { border-color: var(--sage); background: rgba(124,148,115,.05); }
+  .pick-item .pn { font-weight: 500; font-size: .92rem; }
+  .pick-item .pn small { display: block; color: var(--ink-soft); font-size: .76rem; font-weight: 400; }
+  .pick-item .pm { font-size: .76rem; color: var(--ink-soft); }
+  .pick-edit { background: none; color: var(--ink-soft); font-size: .76rem; text-decoration: underline; padding: 4px; }
+  .pick-edit:hover { color: var(--clay); }
+
+  /* ── Auth screen ── */
+  .auth-screen {
+    min-height: 90vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+  }
+  .auth-card {
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 34px 30px; max-width: 380px; width: 100%;
+  }
+  .auth-card .mark { font-family: 'Fraunces'; font-size: 2rem; color: var(--sage-deep); }
+  .auth-card .tag { color: var(--ink-soft); font-size: .9rem; margin: 4px 0 22px; }
+  .auth-card .field { text-align: left; }
+  .auth-msg { font-size: .82rem; margin-top: 12px; min-height: 18px; }
+  .auth-msg.err { color: var(--over); }
+  .auth-msg.ok { color: var(--sage-deep); }
+  .toggle-auth { margin-top: 14px; font-size: .84rem; color: var(--ink-soft); }
+  .toggle-auth button { background: none; color: var(--sage-deep); text-decoration: underline; font-weight: 600; }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 10px;
+    font-size: .85rem; opacity: 0; transition: .3s; z-index: 99;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .hidden { display: none !important; }
+  .config-warn {
+    background: #FBEEE6; border: 1px solid var(--clay-soft); color: #8a4b2e;
+    padding: 14px 16px; border-radius: 12px; margin: 20px 0; font-size: .88rem;
+  }
+  .config-warn code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+
+  @media (max-width: 480px) {
+    .ring-wrap { width: 82px; height: 82px; }
+    .grid3 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ───────── AUTH SCREEN ───────── -->
+<div id="authScreen" class="wrap auth-screen hidden">
+  <div class="auth-card">
+    <div class="mark">Daily Plate</div>
+    <div class="tag">Your vegetarian DASH tracker</div>
+    <div class="field">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" placeholder="you@email.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="authPass">Password</label>
+      <input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="authBtn" style="width:100%;justify-content:center;">Sign in</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="toggle-auth">
+      <span id="toggleText">No account yet?</span>
+      <button id="toggleAuth">Create one</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── CONFIG WARNING ───────── -->
+<div id="configWarn" class="wrap hidden">
+  <div class="config-warn">
+    <strong>Almost there.</strong> Open <code>config.js</code> and paste in your Supabase
+    project URL and anon key, then reload. You'll find them under
+    Settings → API in your Supabase dashboard.
+  </div>
+</div>
+
+<!-- ───────── MAIN APP ───────── -->
+<div id="app" class="wrap hidden">
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">Daily Plate</span>
+      <span class="sub">DASH</span>
+    </div>
+    <div class="who">
+      <span id="userEmail"></span>
+      <button class="linkbtn" id="targetsBtn">Targets</button>
+      <button class="linkbtn" id="signOut">Sign out</button>
+    </div>
+  </header>
+
+  <div class="datebar">
+    <div class="nav">
+      <button class="chip" id="prevDay">‹</button>
+      <button class="chip today" id="todayBtn">Today</button>
+      <button class="chip" id="nextDay">›</button>
+    </div>
+    <h2 id="dateLabel">—</h2>
+  </div>
+
+  <!-- progress rings -->
+  <div class="rings-card">
+    <div class="rings" id="rings"></div>
+  </div>
+
+  <!-- food log -->
+  <div class="section-head">
+    <h3>Today's plate</h3>
+    <button class="btn" id="addLogBtn">+ Log food</button>
+  </div>
+  <div class="log-list" id="logList"></div>
+
+  <!-- weight -->
+  <div class="section-head">
+    <h3>Weight trend</h3>
+    <button class="btn ghost sm" id="addWeightBtn">+ Add weigh-in</button>
+  </div>
+  <div class="chart-card">
+    <div class="chart-head">
+      <div class="latest" id="weightLatest">—</div>
+      <div class="delta" id="weightDelta"></div>
+    </div>
+    <div id="weightChart"></div>
+  </div>
+</div>
+
+<!-- ───────── MODALS ───────── -->
+<div class="scrim" id="scrim">
+
+  <!-- pick food -->
+  <div class="modal hidden" id="pickModal">
+    <h3>Log food</h3>
+    <p class="hint">Pick from your library and set how many servings.</p>
+    <div class="picker-search field">
+      <input type="text" id="pickSearch" placeholder="Search your foods…" />
+    </div>
+    <div class="picker-list" id="pickList"></div>
+    <button class="btn ghost sm" id="newFoodFromPick" style="width:100%;justify-content:center;margin-top:6px;">+ New food</button>
+    <div class="modal-actions">
+      <button class="btn ghost" id="pickCancel">Close</button>
+    </div>
+  </div>
+
+  <!-- set servings + meal -->
+  <div class="modal hidden" id="servModal">
+    <h3 id="servFoodName">—</h3>
+    <p class="hint" id="servPerServing">—</p>
+    <div class="grid2">
+      <div class="field">
+        <label for="servQty">Servings</label>
+        <input type="number" id="servQty" value="1" min="0.25" step="0.25" />
+      </div>
+      <div class="field">
+        <label for="servMeal">Meal</label>
+        <select id="servMeal">
+          <option>Breakfast</option><option>Snack</option>
+          <option>Lunch</option><option>Dinner</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="servBack">Back</button>
+      <button class="btn" id="servSave">Add to plate</button>
+    </div>
+  </div>
+
+  <!-- create/edit food -->
+  <div class="modal hidden" id="foodModal">
+    <h3 id="foodModalTitle">New food</h3>
+    <p class="hint">Enter the numbers for one serving. You'll only do this once per food.</p>
+    <div class="field">
+      <label for="fName">Name</label>
+      <input type="text" id="fName" placeholder="e.g. Baked marinated tofu" />
+    </div>
+    <div class="field">
+      <label for="fServing">Serving description</label>
+      <input type="text" id="fServing" placeholder="e.g. 100g, or 1 cup" />
+    </div>
+    <div class="grid3">
+      <div class="field"><label for="fCal">Calories</label><input type="number" id="fCal" min="0" /></div>
+      <div class="field"><label for="fProt">Protein g</label><input type="number" id="fProt" min="0" /></div>
+      <div class="field"><label for="fSod">Sodium mg</label><input type="number" id="fSod" min="0" /></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="foodDelete" style="flex:0 0 auto;">Delete</button>
+      <button class="btn ghost" id="foodCancel">Cancel</button>
+      <button class="btn" id="foodSave">Save food</button>
+    </div>
+  </div>
+
+  <!-- weight -->
+  <div class="modal hidden" id="weightModal">
+    <h3>Add weigh-in</h3>
+    <p class="hint">Weigh in once a week, same day and time, for the truest trend.</p>
+    <div class="grid2">
+      <div class="field"><label for="wDate">Date</label><input type="date" id="wDate" /></div>
+      <div class="field"><label for="wLbs">Weight (lbs)</label><input type="number" id="wLbs" min="50" step="0.1" /></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="weightCancel">Cancel</button>
+      <button class="btn" id="weightSave">Save</button>
+    </div>
+  </div>
+
+  <!-- targets -->
+  <div class="modal hidden" id="targetModal">
+    <h3>Daily targets</h3>
+    <p class="hint">Adjust these as you lose weight. Defaults follow your starting plan.</p>
+    <div class="grid3">
+      <div class="field"><label for="tCal">Calories</label><input type="number" id="tCal" min="800" /></div>
+      <div class="field"><label for="tProt">Protein g</label><input type="number" id="tProt" min="0" /></div>
+      <div class="field"><label for="tSod">Sodium mg</label><input type="number" id="tSod" min="0" /></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="targetCancel">Cancel</button>
+      <button class="btn" id="targetSave">Save targets</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════ SETUP ════════════════════════
+const cfg = window.SUPABASE_CONFIG || {};
+const configured = cfg.url && cfg.anonKey && !cfg.url.includes("YOUR-PROJECT");
+let sb = null;
+if (configured) sb = supabase.createClient(cfg.url, cfg.anonKey);
+
+const DEFAULT_TARGETS = { calories: 1450, protein: 110, sodium: 2000 };
+
+const state = {
+  user: null,
+  date: todayISO(),
+  foods: [],          // library
+  entries: [],        // for current date
+  weights: [],
+  targets: { ...DEFAULT_TARGETS },
+  pendingFood: null,  // food chosen in picker, awaiting servings
+};
+
+// ════════════════════════ HELPERS ════════════════════════
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function fmtDate(iso){
+  const [y,m,d]=iso.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  const today=todayISO();
+  if(iso===today) return "Today";
+  return dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+}
+function shiftDate(iso,days){
+  const [y,m,d]=iso.split("-").map(Number);
+  const dt=new Date(y,m-1,d); dt.setDate(dt.getDate()+days);
+  return dt.toISOString().slice(0,10);
+}
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2200);
+}
+function el(id){ return document.getElementById(id); }
+function openModal(id){
+  el("scrim").classList.add("open");
+  document.querySelectorAll(".modal").forEach(m=>m.classList.add("hidden"));
+  el(id).classList.remove("hidden");
+}
+function closeModals(){ el("scrim").classList.remove("open"); }
+
+// ════════════════════════ AUTH ════════════════════════
+let authMode = "signin";
+
+function showAuth(){
+  el("authScreen").classList.remove("hidden");
+  el("app").classList.add("hidden");
+  el("configWarn").classList.add("hidden");
+}
+function showConfigWarn(){
+  el("configWarn").classList.remove("hidden");
+  el("authScreen").classList.add("hidden");
+  el("app").classList.add("hidden");
+}
+
+el("toggleAuth").onclick = () => {
+  authMode = authMode === "signin" ? "signup" : "signin";
+  el("authBtn").textContent = authMode === "signin" ? "Sign in" : "Create account";
+  el("toggleText").textContent = authMode === "signin" ? "No account yet?" : "Already have an account?";
+  el("toggleAuth").textContent = authMode === "signin" ? "Create one" : "Sign in";
+  el("authMsg").textContent = "";
+};
+
+el("authBtn").onclick = async () => {
+  const email = el("authEmail").value.trim();
+  const password = el("authPass").value;
+  const msg = el("authMsg");
+  msg.className = "auth-msg";
+  if(!email || !password){ msg.classList.add("err"); msg.textContent="Enter your email and password."; return; }
+  el("authBtn").disabled = true;
+  try {
+    if(authMode === "signup"){
+      const { error } = await sb.auth.signUp({ email, password });
+      if(error) throw error;
+      msg.classList.add("ok");
+      msg.textContent = "Account made. If email confirmation is on, check your inbox, then sign in.";
+      authMode = "signin"; el("authBtn").textContent="Sign in";
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+    }
+  } catch(e){
+    msg.classList.add("err");
+    msg.textContent = e.message || "Something went wrong.";
+  } finally {
+    el("authBtn").disabled = false;
+  }
+};
+
+el("signOut").onclick = async () => { await sb.auth.signOut(); };
+
+// ════════════════════════ DATA LOADERS ════════════════════════
+async function loadFoods(){
+  const { data, error } = await sb.from("foods").select("*").order("name");
+  if(error){ toast("Couldn't load foods."); return; }
+  state.foods = data || [];
+}
+async function loadEntries(){
+  const { data, error } = await sb.from("log_entries")
+    .select("*").eq("entry_date", state.date)
+    .order("created_at");
+  if(error){ toast("Couldn't load today's log."); return; }
+  state.entries = data || [];
+}
+async function loadWeights(){
+  const { data, error } = await sb.from("weights").select("*").order("weigh_date");
+  if(error){ return; }
+  state.weights = data || [];
+}
+async function loadTargets(){
+  const { data, error } = await sb.from("targets").select("*").limit(1).maybeSingle();
+  if(error){ return; }
+  if(data) state.targets = { calories: data.calories, protein: data.protein, sodium: data.sodium };
+  else state.targets = { ...DEFAULT_TARGETS };
+}
+
+// ════════════════════════ RENDER: RINGS ════════════════════════
+function ringSVG(pct, color){
+  const r=40, c=2*Math.PI*r;
+  const off = c*(1-Math.min(pct,1));
+  return `<svg width="94" height="94" viewBox="0 0 94 94">
+    <circle cx="47" cy="47" r="${r}" fill="none" stroke="var(--ring-track)" stroke-width="9"/>
+    <circle cx="47" cy="47" r="${r}" fill="none" stroke="${color}" stroke-width="9"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+      style="transition:stroke-dashoffset .6s ease"/>
+  </svg>`;
+}
+function renderRings(){
+  const tot = state.entries.reduce((a,e)=>({
+    calories:a.calories+e.calories, protein:a.protein+e.protein, sodium:a.sodium+e.sodium
+  }), {calories:0,protein:0,sodium:0});
+
+  // For calories & sodium, "good" stays under target. For protein, hitting target is good.
+  const defs = [
+    { key:"calories", label:"Calories", val:Math.round(tot.calories), target:state.targets.calories, unit:"kcal", overBad:true },
+    { key:"protein",  label:"Protein",  val:Math.round(tot.protein),  target:state.targets.protein,  unit:"g",  overBad:false },
+    { key:"sodium",   label:"Sodium",   val:Math.round(tot.sodium),   target:state.targets.sodium,   unit:"mg", overBad:true },
+  ];
+  el("rings").innerHTML = defs.map(d=>{
+    const pct = d.target ? d.val/d.target : 0;
+    let color = "var(--good)";
+    if(d.overBad){ color = pct>1.05 ? "var(--over)" : (pct>0.9 ? "var(--warn)" : "var(--good)"); }
+    else { color = pct>=1 ? "var(--good)" : (pct>=0.6 ? "var(--warn)" : "var(--ring-track)"); if(pct>0&&pct<0.6) color="var(--clay-soft)"; }
+    return `<div class="ring-unit">
+      <div class="ring-wrap">${ringSVG(pct,color)}
+        <div class="ring-center"><span class="val">${d.val}</span><span class="unit">${d.unit}</span></div>
+      </div>
+      <div class="ring-label">${d.label}</div>
+      <div class="ring-target">of ${d.target} ${d.unit}</div>
+    </div>`;
+  }).join("");
+}
+
+// ════════════════════════ RENDER: LOG ════════════════════════
+function renderLog(){
+  const list = el("logList");
+  if(!state.entries.length){
+    list.innerHTML = `<div class="empty"><p>Nothing logged yet for ${fmtDate(state.date)}.</p>
+      <button class="btn" onclick="document.getElementById('addLogBtn').click()">+ Log your first food</button></div>`;
+    return;
+  }
+  const order={Breakfast:0,Snack:1,Lunch:2,Dinner:3};
+  const sorted=[...state.entries].sort((a,b)=>(order[a.meal]??9)-(order[b.meal]??9));
+  list.innerHTML = sorted.map(e=>`
+    <div class="log-row">
+      <span class="meal-tag">${e.meal}</span>
+      <div class="name">${escapeHtml(e.food_name)}
+        <small>${e.servings} × ${escapeHtml(e.serving_desc||"serving")}</small></div>
+      <div class="macros"><b>${Math.round(e.calories)}</b> kcal · ${Math.round(e.protein)}g P · ${Math.round(e.sodium)}mg Na</div>
+      <button class="del" data-id="${e.id}" title="Remove">×</button>
+    </div>`).join("");
+  list.querySelectorAll(".del").forEach(b=>{
+    b.onclick=()=>deleteEntry(b.dataset.id);
+  });
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// ════════════════════════ RENDER: WEIGHT CHART ════════════════════════
+function renderWeight(){
+  const w = state.weights;
+  if(!w.length){
+    el("weightLatest").textContent = "No weigh-ins yet";
+    el("weightDelta").textContent = "";
+    el("weightChart").innerHTML = `<div class="empty" style="border:none;padding:14px 0;">Add your first weigh-in to start the trend.</div>`;
+    return;
+  }
+  const latest = w[w.length-1];
+  el("weightLatest").innerHTML = `${latest.lbs} <small>lbs</small>`;
+  if(w.length>1){
+    const diff = latest.lbs - w[0].lbs;
+    const d=el("weightDelta");
+    d.className = "delta " + (diff<=0?"down":"up");
+    d.textContent = `${diff<=0?"▼":"▲"} ${Math.abs(diff).toFixed(1)} lbs since start`;
+  } else el("weightDelta").textContent="";
+
+  // simple SVG line chart
+  const W=700, H=180, pad=28;
+  const xs = w.map((_,i)=> w.length>1 ? pad + i*(W-2*pad)/(w.length-1) : W/2);
+  const vals = w.map(p=>p.lbs);
+  const mn=Math.min(...vals)-1, mx=Math.max(...vals)+1;
+  const y = v => H-pad - (v-mn)/(mx-mn||1)*(H-2*pad);
+  const pts = w.map((p,i)=>`${xs[i]},${y(p.lbs)}`).join(" ");
+  const area = `${pad},${H-pad} ${pts} ${xs[xs.length-1]},${H-pad}`;
+  const dots = w.map((p,i)=>`<circle cx="${xs[i]}" cy="${y(p.lbs)}" r="4" fill="var(--sage-deep)"/>`).join("");
+  el("weightChart").innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="overflow:visible">
+      <polygon points="${area}" fill="rgba(124,148,115,.12)"/>
+      <polyline points="${pts}" fill="none" stroke="var(--sage)" stroke-width="2.5" stroke-linejoin="round"/>
+      ${dots}
+    </svg>`;
+}
+
+// ════════════════════════ RENDER: ALL ════════════════════════
+function renderDate(){ el("dateLabel").textContent = fmtDate(state.date); }
+function renderAll(){ renderDate(); renderRings(); renderLog(); renderWeight(); }
+
+// ════════════════════════ ACTIONS: LOG ════════════════════════
+el("addLogBtn").onclick = () => { renderPicker(); openModal("pickModal"); el("pickSearch").value=""; el("pickSearch").focus(); };
+
+function renderPicker(filter=""){
+  const list=el("pickList");
+  const f=filter.toLowerCase();
+  const matches=state.foods.filter(x=>x.name.toLowerCase().includes(f));
+  if(!state.foods.length){
+    list.innerHTML=`<div class="empty" style="border:none;">Your library is empty. Add a food to get started.</div>`;
+    return;
+  }
+  if(!matches.length){ list.innerHTML=`<div class="empty" style="border:none;">No matches.</div>`; return; }
+  list.innerHTML = matches.map(x=>`
+    <div class="pick-item" data-id="${x.id}">
+      <div class="pn">${escapeHtml(x.name)}<small>${escapeHtml(x.serving_desc||"")}</small></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="pm">${x.calories} kcal · ${x.protein}P · ${x.sodium}Na</span>
+        <button class="pick-edit" data-edit="${x.id}">edit</button>
+      </div>
+    </div>`).join("");
+  list.querySelectorAll(".pick-item").forEach(it=>{
+    it.onclick=(ev)=>{
+      if(ev.target.dataset.edit) return;
+      const food=state.foods.find(x=>x.id==it.dataset.id);
+      openServings(food);
+    };
+  });
+  list.querySelectorAll(".pick-edit").forEach(b=>{
+    b.onclick=(ev)=>{ ev.stopPropagation(); openFoodEditor(state.foods.find(x=>x.id==b.dataset.edit)); };
+  });
+}
+el("pickSearch").oninput = e => renderPicker(e.target.value);
+el("pickCancel").onclick = closeModals;
+el("newFoodFromPick").onclick = () => openFoodEditor(null);
+
+function openServings(food){
+  state.pendingFood = food;
+  el("servFoodName").textContent = food.name;
+  el("servPerServing").textContent = `Per ${food.serving_desc||"serving"}: ${food.calories} kcal · ${food.protein}g protein · ${food.sodium}mg sodium`;
+  el("servQty").value = 1;
+  // smart default meal by time of day
+  const h=new Date().getHours();
+  el("servMeal").value = h<11?"Breakfast":h<14?"Snack":h<18?"Lunch":"Dinner";
+  openModal("servModal");
+}
+el("servBack").onclick = () => { renderPicker(); openModal("pickModal"); };
+el("servSave").onclick = async () => {
+  const f=state.pendingFood; const q=parseFloat(el("servQty").value)||1;
+  const row={
+    food_id:f.id, food_name:f.name, serving_desc:f.serving_desc,
+    servings:q, meal:el("servMeal").value, entry_date:state.date,
+    calories:f.calories*q, protein:f.protein*q, sodium:f.sodium*q,
+  };
+  const { data, error } = await sb.from("log_entries").insert(row).select().single();
+  if(error){ toast("Couldn't save."); return; }
+  state.entries.push(data); closeModals(); renderRings(); renderLog();
+  toast("Added to your plate.");
+};
+
+async function deleteEntry(id){
+  const { error } = await sb.from("log_entries").delete().eq("id", id);
+  if(error){ toast("Couldn't remove."); return; }
+  state.entries = state.entries.filter(e=>e.id!=id);
+  renderRings(); renderLog();
+}
+
+// ════════════════════════ ACTIONS: FOOD LIBRARY ════════════════════════
+let editingFoodId = null;
+function openFoodEditor(food){
+  editingFoodId = food ? food.id : null;
+  el("foodModalTitle").textContent = food ? "Edit food" : "New food";
+  el("fName").value = food?.name || "";
+  el("fServing").value = food?.serving_desc || "";
+  el("fCal").value = food?.calories ?? "";
+  el("fProt").value = food?.protein ?? "";
+  el("fSod").value = food?.sodium ?? "";
+  el("foodDelete").style.display = food ? "block" : "none";
+  openModal("foodModal");
+}
+el("foodCancel").onclick = () => { renderPicker(el("pickSearch").value); openModal("pickModal"); };
+el("foodSave").onclick = async () => {
+  const row={
+    name:el("fName").value.trim(),
+    serving_desc:el("fServing").value.trim(),
+    calories:parseFloat(el("fCal").value)||0,
+    protein:parseFloat(el("fProt").value)||0,
+    sodium:parseFloat(el("fSod").value)||0,
+  };
+  if(!row.name){ toast("Give the food a name."); return; }
+  if(editingFoodId){
+    const { data, error } = await sb.from("foods").update(row).eq("id",editingFoodId).select().single();
+    if(error){ toast("Couldn't save."); return; }
+    const i=state.foods.findIndex(x=>x.id==editingFoodId); state.foods[i]=data;
+  } else {
+    const { data, error } = await sb.from("foods").insert(row).select().single();
+    if(error){ toast("Couldn't save."); return; }
+    state.foods.push(data);
+  }
+  state.foods.sort((a,b)=>a.name.localeCompare(b.name));
+  renderPicker(el("pickSearch").value); openModal("pickModal");
+  toast("Food saved.");
+};
+el("foodDelete").onclick = async () => {
+  if(!editingFoodId) return;
+  const { error } = await sb.from("foods").delete().eq("id",editingFoodId);
+  if(error){ toast("Couldn't delete (it may be used in past logs)."); return; }
+  state.foods = state.foods.filter(x=>x.id!=editingFoodId);
+  renderPicker(el("pickSearch").value); openModal("pickModal"); toast("Food deleted.");
+};
+
+// ════════════════════════ ACTIONS: WEIGHT ════════════════════════
+el("addWeightBtn").onclick = () => { el("wDate").value = todayISO(); el("wLbs").value=""; openModal("weightModal"); };
+el("weightCancel").onclick = closeModals;
+el("weightSave").onclick = async () => {
+  const row={ weigh_date:el("wDate").value, lbs:parseFloat(el("wLbs").value) };
+  if(!row.weigh_date || !row.lbs){ toast("Enter a date and weight."); return; }
+  // upsert by date
+  const { data, error } = await sb.from("weights").upsert(row,{onConflict:"user_id,weigh_date"}).select().single();
+  if(error){ toast("Couldn't save weigh-in."); return; }
+  const i=state.weights.findIndex(w=>w.weigh_date===row.weigh_date);
+  if(i>=0) state.weights[i]=data; else state.weights.push(data);
+  state.weights.sort((a,b)=>a.weigh_date.localeCompare(b.weigh_date));
+  closeModals(); renderWeight(); toast("Weigh-in saved.");
+};
+
+// ════════════════════════ ACTIONS: TARGETS ════════════════════════
+el("targetsBtn").onclick = () => {
+  el("tCal").value=state.targets.calories; el("tProt").value=state.targets.protein; el("tSod").value=state.targets.sodium;
+  openModal("targetModal");
+};
+el("targetCancel").onclick = closeModals;
+el("targetSave").onclick = async () => {
+  const row={ calories:parseInt(el("tCal").value)||DEFAULT_TARGETS.calories,
+    protein:parseInt(el("tProt").value)||DEFAULT_TARGETS.protein,
+    sodium:parseInt(el("tSod").value)||DEFAULT_TARGETS.sodium };
+  const { error } = await sb.from("targets").upsert({ id: state.user.id, ...row });
+  if(error){ toast("Couldn't save targets."); return; }
+  state.targets=row; closeModals(); renderRings(); toast("Targets updated.");
+};
+
+// ════════════════════════ DATE NAV ════════════════════════
+el("prevDay").onclick = async () => { state.date=shiftDate(state.date,-1); await loadEntries(); renderAll(); };
+el("nextDay").onclick = async () => { state.date=shiftDate(state.date,1); await loadEntries(); renderAll(); };
+el("todayBtn").onclick = async () => { state.date=todayISO(); await loadEntries(); renderAll(); };
+
+// scrim click closes
+el("scrim").onclick = e => { if(e.target===el("scrim")) closeModals(); };
+
+// ════════════════════════ BOOT ════════════════════════
+async function enterApp(user){
+  state.user=user;
+  el("userEmail").textContent = user.email;
+  el("authScreen").classList.add("hidden");
+  el("app").classList.remove("hidden");
+  await Promise.all([loadFoods(), loadEntries(), loadWeights(), loadTargets()]);
+  renderAll();
+}
+
+async function boot(){
+  if(!configured){ showConfigWarn(); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session?.user) enterApp(session.user); else showAuth();
+  sb.auth.onAuthStateChange((_e, sess)=>{
+    if(sess?.user){ if(el("app").classList.contains("hidden")) enterApp(sess.user); }
+    else showAuth();
+  });
+}
+boot();
+</script>
+</body>
+</html>
