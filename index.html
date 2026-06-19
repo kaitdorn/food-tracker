@@ -42,14 +42,21 @@
 
   /* ── Header ── */
   header.topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 0 10px;
+    padding: 18px 0 12px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
   }
-  .brand { display: flex; align-items: baseline; gap: 9px; }
-  .brand .mark { font-family: 'Fraunces'; font-size: 1.55rem; color: var(--sage-deep); letter-spacing: -.01em; }
-  .brand .sub { font-size: .72rem; color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; }
-  .topbar .who { font-size: .8rem; color: var(--ink-soft); display: flex; align-items: center; gap: 10px; }
-  .linkbtn { background: none; color: var(--ink-soft); text-decoration: underline; font-size: .8rem; padding: 4px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .mark { font-family: 'Fraunces'; font-size: 1.7rem; color: var(--sage-deep); letter-spacing: -.01em; white-space: nowrap; }
+  .topbar .who {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 8px; font-size: .8rem; color: var(--ink-soft);
+  }
+  .topbar .who .email {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+  }
+  .linkbtn { background: none; color: var(--sage-deep); text-decoration: underline; font-size: .82rem; padding: 2px 0; white-space: nowrap; }
   .linkbtn:hover { color: var(--clay); }
 
   .datebar { display: flex; align-items: center; gap: 12px; margin: 6px 0 18px; }
@@ -102,18 +109,25 @@
   .log-list { display: flex; flex-direction: column; gap: 8px; }
   .log-row {
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-    padding: 11px 14px; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+    position: relative;
+  }
+  .log-row .row-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
   .log-row .meal-tag {
-    font-size: .65rem; text-transform: uppercase; letter-spacing: .05em;
+    font-size: .64rem; text-transform: uppercase; letter-spacing: .05em;
     color: var(--sage-deep); background: rgba(124,148,115,.13);
-    padding: 2px 7px; border-radius: 6px; font-weight: 600; white-space: nowrap;
+    padding: 3px 8px; border-radius: 6px; font-weight: 600; white-space: nowrap;
   }
-  .log-row .name { flex: 1; font-weight: 500; }
-  .log-row .name small { display: block; font-weight: 400; color: var(--ink-soft); font-size: .78rem; }
-  .log-row .macros { font-size: .78rem; color: var(--ink-soft); text-align: right; white-space: nowrap; }
+  .log-row .name { font-weight: 600; font-size: 1.02rem; line-height: 1.25; }
+  .log-row .name small { display: block; font-weight: 400; color: var(--ink-soft); font-size: .8rem; margin-top: 1px; }
+  .log-row .macros { font-size: .82rem; color: var(--ink-soft); }
   .log-row .macros b { color: var(--ink); font-weight: 600; }
-  .log-row .del { background: none; color: var(--ink-soft); font-size: 1.1rem; padding: 2px 6px; border-radius: 6px; }
+  .log-row .del {
+    background: none; color: var(--ink-soft); font-size: 1.25rem; line-height: 1;
+    padding: 2px 6px; border-radius: 6px; flex: 0 0 auto;
+  }
   .log-row .del:hover { color: var(--over); background: rgba(194,91,74,.08); }
 
   .empty {
@@ -250,10 +264,9 @@
   <header class="topbar">
     <div class="brand">
       <span class="mark">Daily Plate</span>
-      <span class="sub">DASH</span>
     </div>
     <div class="who">
-      <span id="userEmail"></span>
+      <span id="userEmail" class="email"></span>
       <button class="linkbtn" id="targetsBtn">Targets</button>
       <button class="linkbtn" id="signOut">Sign out</button>
     </div>
@@ -561,11 +574,13 @@ function renderLog(){
   const sorted=[...state.entries].sort((a,b)=>(order[a.meal]??9)-(order[b.meal]??9));
   list.innerHTML = sorted.map(e=>`
     <div class="log-row">
-      <span class="meal-tag">${e.meal}</span>
+      <div class="row-top">
+        <span class="meal-tag">${e.meal}</span>
+        <button class="del" data-id="${e.id}" title="Remove">×</button>
+      </div>
       <div class="name">${escapeHtml(e.food_name)}
         <small>${e.servings} × ${escapeHtml(e.serving_desc||"serving")}</small></div>
-      <div class="macros"><b>${Math.round(e.calories)}</b> kcal · ${Math.round(e.protein)}g P · ${Math.round(e.sodium)}mg Na</div>
-      <button class="del" data-id="${e.id}" title="Remove">×</button>
+      <div class="macros"><b>${Math.round(e.calories)}</b> kcal · ${Math.round(e.protein)}g protein · ${Math.round(e.sodium)}mg sodium</div>
     </div>`).join("");
   list.querySelectorAll(".del").forEach(b=>{
     b.onclick=()=>deleteEntry(b.dataset.id);
