@@ -232,7 +232,7 @@
 <div id="authScreen" class="wrap auth-screen hidden">
   <div class="auth-card">
     <div class="mark">Daily Plate</div>
-    <div class="tag">Your daily tracker</div>
+    <div class="tag">Your vegetarian DASH tracker</div>
     <div class="field">
       <label for="authEmail">Email</label>
       <input type="email" id="authEmail" placeholder="you@email.com" autocomplete="email" />
@@ -424,7 +424,12 @@ const state = {
 };
 
 // ════════════════════════ HELPERS ════════════════════════
-function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function todayISO(){
+  const d=new Date();
+  // local date components, not UTC, so the day flips at local midnight
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
 function fmtDate(iso){
   const [y,m,d]=iso.split("-").map(Number);
   const dt=new Date(y,m-1,d);
@@ -435,7 +440,8 @@ function fmtDate(iso){
 function shiftDate(iso,days){
   const [y,m,d]=iso.split("-").map(Number);
   const dt=new Date(y,m-1,d); dt.setDate(dt.getDate()+days);
-  return dt.toISOString().slice(0,10);
+  const yy=dt.getFullYear(), mm=String(dt.getMonth()+1).padStart(2,"0"), dd=String(dt.getDate()).padStart(2,"0");
+  return `${yy}-${mm}-${dd}`;
 }
 function toast(msg){
   const t=document.getElementById("toast");
